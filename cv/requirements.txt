@@ -1,2 +1,3 @@
 opencv-python==4.13.0.92
 ultralytics==8.4.42
+pika==1.3.2
