@@ -4,23 +4,22 @@ A simulation project for the lecture: **"Big Data Pipelines for Computer Vision:
 
 ## Overview
 
-This project simulates a real-time seat occupancy detection system for train wagons.
-Instead of sending heavy video streams to a central server, processing happens locally on the edge device (edge computing) - only lightweight JSON status updates are forwarded.
-This is the core Big Data pipeline optimization the lecture demonstrates.
+Real-time seat occupancy detection for train wagons. Processing runs on the edge device, only lightweight JSON events are forwarded, not raw video streams.
 
 ## Architecture
 
 ```
-Camera → MOG (Background subtraction in future) → Frame Skip → 
-YOLO (person detection) → ROI Check → [Pipeline] → Backend API → Display
+Camera → Frame Skip → YOLO (person detection) → ROI Check → RabbitMQ → .NET API Consumer
 ```
 
-- **Frame skip** - process every Nth frame instead of all, reduces load significantly
-- **ROI (Region of Interest)** - only analyze the seat area, not the full frame
-- **YOLO** - detects persons in the cropped seat region
-- **Pipeline** - planned: RabbitMQ message queue + .NET backend API + SignalR push to display
+- **Frame skip**: every 5th frame is analyzed, reducing load by 80%
+- **ROI**: only the marked seat region is cropped and passed to YOLO, not the full frame
+- **YOLO (yolov8n)**: detects persons inside the cropped region
+- **Change-only publish**: event is sent only when seat status changes (free ↔ occupied)
+- **RabbitMQ**: `passenger-seat` queue (quorum, durable) decouples CV from backend
+- **Multiprocessing**: each camera runs in its own process in parallel
 
-## Scale Example
+## Scale
 
 | Level | Count |
 |---|---|
@@ -28,21 +27,59 @@ YOLO (person detection) → ROI Check → [Pipeline] → Backend API → Display
 | Wagons per train | 10 |
 | Trains | 50 |
 | **Total cameras** | **5,000** |
-| Frames/sec (15fps, every 5th) | **15,000 frames/sec** |
+| Frames analyzed/sec (15fps, every 5th) | **15,000/sec** |
 
-Sending raw video at this scale is impossible - this is why pipelines matter.
+Sending raw video at this scale is infeasible: this is why the pipeline exists.
 
-## Usage
+## Project Structure
+
+```
+├── cv/
+│   ├── main.py            # Production: multiprocessing, one process per camera, publishes to RabbitMQ
+│   ├── main_simple.py     # Demo: single camera, no RabbitMQ, draws bounding boxes on screen
+│   ├── mark_roi.py        # Tool to mark seat regions and save to config.json
+│   ├── settings.py        # Paths (config, video source, model)
+│   └── yolov8n.pt         # YOLO model weights
+├── api/
+│   └── SeatMonitorApi/    # .NET BackgroundService consuming RabbitMQ, logs received events
+└── config.json            # Train → wagon → camera → seat coords
+```
+
+## Running
+
+**Prerequisites**
+```bash
+docker start rabbitmq   # or: docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:management
+```
+
+**CV (producer)**
+```bash
+cd cv
+source venv/bin/activate
+
+python main_simple.py   # demo mode: shows video with seat labels
+python main.py          # full mode: all cameras in parallel, publishes to RabbitMQ
+```
+
+**API (consumer)**
+```bash
+cd api/SeatMonitorApi
+dotnet run
+```
+
+**RabbitMQ management panel:** `http://localhost:15672` (guest / guest)
+
+## Setup from scratch
 
 ```bash
-# 1. Set up environment
+cd cv
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
 
-# 2. Mark seat regions on an empty frame (saves to roi_data.json)
-python mark_roi.py
+Edit `config.json` — define trains, wagons, and cameras.
 
-# 3. Run detection
-python main.py
+```bash
+python mark_roi.py      # mark seat regions, saves coords to config.json
 ```
