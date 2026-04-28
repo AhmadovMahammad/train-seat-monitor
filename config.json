@@ -1,0 +1,48 @@
+{
+    "trains": [
+        {
+            "id": "train_1",
+            "wagons": [
+                {
+                    "id": "wagon_1",
+                    "cameras": [
+                        {
+                            "id": "cam_front",
+                            "url": "rtsp://192.168.1.10/stream"
+                        },
+                        {
+                            "id": "cam_rear",
+                            "url": "rtsp://192.168.1.11/stream"
+                        }
+                    ]
+                },
+                {
+                    "id": "wagon_2",
+                    "cameras": [
+                        {
+                            "id": "cam_front",
+                            "url": "rtsp://192.168.1.12/stream"
+                        },
+                        {
+                            "id": "cam_rear",
+                            "url": "rtsp://192.168.1.13/stream"
+                        }
+                    ]
+                },
+                {
+                    "id": "wagon_3",
+                    "cameras": [
+                        {
+                            "id": "cam_front",
+                            "url": "rtsp://192.168.1.14/stream"
+                        },
+                        {
+                            "id": "cam_rear",
+                            "url": "rtsp://192.168.1.15/stream"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

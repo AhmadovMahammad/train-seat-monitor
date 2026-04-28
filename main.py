@@ -1,14 +1,15 @@
 import json
+from pathlib import Path
 
 import cv2
 from ultralytics import YOLO
 
 model = YOLO("yolov8n.pt")
 
-with open("roi_data.json") as f:
+with open("roi_data.json", "r") as f:
     roi_coords = json.load(f)
 
-cap = cv2.VideoCapture("simulation-longer.mp4")
+cap = cv2.VideoCapture("public/simulation-longer.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
 delay = int(1000 / fps)
 frame_count = 0
