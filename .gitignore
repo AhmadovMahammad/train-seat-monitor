@@ -3,3 +3,10 @@ yolov8n.pt
 *.mp4
 __pycache__/
 *.pyc
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+.idea/
