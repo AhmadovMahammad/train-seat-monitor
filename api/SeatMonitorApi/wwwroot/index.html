@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seat Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root { color-scheme: light; }
+
+    body {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 40px;
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    header h1 {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      transition: background 0.4s;
+    }
+
+    #status-dot.live {
+      background: #16a34a;
+      box-shadow: 0 0 8px #16a34a66;
+    }
+
+    #status-text {
+      font-size: 12px;
+      color: #94a3b8;
+      letter-spacing: 0.05em;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 40px;
+      gap: 40px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 48px;
+    }
+
+    .train-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .train-label {
+      font-size: 11px;
+      color: #cbd5e1;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .wagons-row {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    rect[id] {
+      transition: fill 0.35s ease;
+      cursor: default;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 12px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      box-shadow: 0 4px 16px #0f172a12;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #toast .toast-meta {
+      color: #94a3b8;
+      font-size: 11px;
+      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    #toast .toast-status {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .occupied { color: #dc2626; }
+    .free { color: #16a34a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Seat Monitor</h1>
+    <div id="status-bar">
+      <div id="status-dot"></div>
+      <span id="status-text">connecting</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#16a34a"></div>
+        <span>free</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#ef4444"></div>
+        <span>occupied</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#e2e8f0"></div>
+        <span>unknown</span>
+      </div>
+    </div>
+    <div id="app"></div>
+  </main>
+
+  <div id="toast">
+    <div class="toast-meta" id="toast-meta"></div>
+    <div class="toast-status" id="toast-status"></div>
+  </div>
+
+  <script>
+    const SEAT_W = 148, SEAT_H = 104, AISLE = 64, HPAD = 28, VPAD = 16, CAM_GAP = 20, HEADER_H = 52, CAM_LABEL_H = 22;
+
+    function svgEl(tag, attrs) {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (const [k, v] of Object.entries(attrs)) { el.setAttribute(k, v); }
+      return el;
+    }
+
+    function makeSeat(x, y, id, label) {
+      const g = svgEl('g', {});
+
+      g.appendChild(svgEl('rect', {
+        x, y, width: SEAT_W, height: SEAT_H, rx: 10,
+        fill: '#e2e8f0', id
+      }));
+
+      const t = svgEl('text', {
+        x: x + SEAT_W / 2,
+        y: y + SEAT_H / 2 + 5,
+        fill: '#94a3b8',
+        'font-size': 15,
+        'font-weight': 500,
+        'text-anchor': 'middle',
+        'font-family': 'system-ui, sans-serif',
+        'pointer-events': 'none'
+      });
+      t.textContent = label;
+      g.appendChild(t);
+
+      return g;
+    }
+
+    function buildWagonSvg(wagon) {
+      const svgW = HPAD * 2 + SEAT_W * 2 + AISLE;
+
+      let contentH = 0;
+      for (const cam of wagon.cameras) {
+        const rows = Math.ceil(cam.seats.length / 2);
+        contentH += CAM_LABEL_H + rows * SEAT_H + Math.max(0, rows - 1) * VPAD + VPAD * 2 + CAM_GAP;
+      }
+
+      const svgH = HEADER_H + VPAD + contentH;
+      const svg = svgEl('svg', { width: svgW, height: svgH });
+
+      svg.appendChild(svgEl('rect', { x: 0, y: 0, width: svgW, height: svgH, rx: 14, fill: '#ffffff' }));
+      svg.appendChild(svgEl('rect', { x: 1, y: 1, width: svgW - 2, height: svgH - 2, rx: 13, fill: 'none', stroke: '#e2e8f0', 'stroke-width': 1 }));
+
+      const titleText = svgEl('text', {
+        x: svgW / 2,
+        y: HEADER_H / 2 + 5,
+        fill: '#94a3b8',
+        'font-size': 11,
+        'font-weight': 500,
+        'text-anchor': 'middle',
+        'font-family': 'system-ui, sans-serif',
+        'letter-spacing': '0.12em'
+      });
+      titleText.textContent = wagon.id.replace(/_/g, ' ').toUpperCase();
+      svg.appendChild(titleText);
+
+      svg.appendChild(svgEl('line', {
+        x1: HPAD, y1: HEADER_H, x2: svgW - HPAD, y2: HEADER_H,
+        stroke: '#f1f5f9', 'stroke-width': 1
+      }));
+
+      let y = HEADER_H + VPAD;
+
+      for (let ci = 0; ci < wagon.cameras.length; ci++) {
+        const cam = wagon.cameras[ci];
+
+        if (ci > 0) {
+          svg.appendChild(svgEl('line', {
+            x1: HPAD + 20, y1: y - VPAD / 2,
+            x2: svgW - HPAD - 20, y2: y - VPAD / 2,
+            stroke: '#e2e8f0', 'stroke-width': 1, 'stroke-dasharray': '3 6'
+          }));
+        }
+
+        const lbl = svgEl('text', {
+          x: svgW / 2, y: y + CAM_LABEL_H - 6,
+          fill: '#cbd5e1', 'font-size': 10, 'text-anchor': 'middle',
+          'font-family': 'system-ui, sans-serif', 'letter-spacing': '0.1em'
+        });
+        lbl.textContent = cam.id;
+        svg.appendChild(lbl);
+        y += CAM_LABEL_H;
+
+        for (let i = 0; i < cam.seats.length; i += 2) {
+          const s1 = cam.seats[i];
+          const s2 = cam.seats[i + 1];
+
+          svg.appendChild(makeSeat(HPAD, y, `${wagon.id}__${cam.id}__${s1.id}`, s1.id));
+
+          if (s2) {
+            svg.appendChild(makeSeat(HPAD + SEAT_W + AISLE, y, `${wagon.id}__${cam.id}__${s2.id}`, s2.id));
+          }
+
+          y += SEAT_H + VPAD;
+        }
+
+        y += VPAD + CAM_GAP;
+      }
+
+      return svg;
+    }
+
+    function buildLayout(data) {
+      const app = document.getElementById('app');
+
+      for (const train of data.trains) {
+        const section = document.createElement('div');
+        section.className = 'train-section';
+
+        const label = document.createElement('div');
+        label.className = 'train-label';
+        label.textContent = train.id.replace(/_/g, ' ');
+        section.appendChild(label);
+
+        const row = document.createElement('div');
+        row.className = 'wagons-row';
+
+        for (const wagon of train.wagons) {
+          row.appendChild(buildWagonSvg(wagon));
+        }
+
+        section.appendChild(row);
+        app.appendChild(section);
+      }
+    }
+
+    function setStatus(text, live) {
+      const dot = document.getElementById('status-dot');
+      dot.className = live ? 'live' : '';
+      document.getElementById('status-text').textContent = text;
+    }
+
+    let toastTimer;
+    function showToast(evt) {
+      document.getElementById('toast-meta').textContent = `${evt.wagonId} / ${evt.cameraId}`;
+      const statusEl = document.getElementById('toast-status');
+      statusEl.textContent = `${evt.seatId} ${evt.status}`;
+      statusEl.className = `toast-status ${evt.status}`;
+
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+    }
+
+    function connectSSE() {
+      const es = new EventSource('/events');
+
+      es.onopen = () => setStatus('live', true);
+      es.onerror = () => setStatus('reconnecting', false);
+
+      es.onmessage = (e) => {
+        const evt = JSON.parse(e.data);
+        const el = document.getElementById(`${evt.wagonId}__${evt.cameraId}__${evt.seatId}`);
+
+        if (el) {
+          el.setAttribute('fill', evt.status === 'occupied' ? '#ef4444' : '#16a34a');
+        }
+
+        showToast(evt);
+      };
+    }
+
+    fetch('/api/layout')
+      .then(r => r.json())
+      .then(data => {
+        buildLayout(data);
+        connectSSE();
+      })
+      .catch(() => setStatus('failed', false));
+  </script>
+</body>
+</html>

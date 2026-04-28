@@ -1,17 +1,47 @@
+using System.Text.Json;
+using System.Threading.Channels;
 using SeatMonitorApi;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton<SeatEventBus>();
 
 builder.Services.AddHostedService<SeatEventConsumer>();
 
 WebApplication app = builder.Build();
 
-app.UseHttpsRedirection();
+app.UseDefaultFiles();
 
-app.Map("/info", context =>
+app.UseStaticFiles();
+
+app.MapGet("/api/layout", (IConfiguration config) =>
 {
-    context.Response.ContentType = "text/plain";
-    return context.Response.WriteAsync("Welcome to Seat Monitor API!");
+    string path = config["ConfigPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "config.json");
+
+    JsonElement layout = JsonDocument.Parse(File.ReadAllText(path)).RootElement;
+
+    return Results.Json(layout);
+});
+
+JsonSerializerOptions options = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
+
+app.MapGet("/events", async (SeatEventBus bus, HttpContext ctx, CancellationToken ct) =>
+{
+    ctx.Response.ContentType = "text/event-stream";
+
+    using IDisposable sub = bus.Subscribe(out ChannelReader<SeatEvent> reader);
+
+    await foreach (SeatEvent seatEvent in reader.ReadAllAsync(ct))
+    {
+        string data = JsonSerializer.Serialize(seatEvent, options);
+
+        await ctx.Response.WriteAsync($"event: message\ndata: {data}\n\n");
+
+        await ctx.Response.Body.FlushAsync(ct);
+    }
 });
 
 app.Run();
