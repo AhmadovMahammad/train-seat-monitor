@@ -1,53 +1,83 @@
 import json
-from pathlib import Path
+from multiprocessing import Process
 
 import cv2
 from ultralytics import YOLO
 
-model = YOLO("yolov8n.pt")
+from settings import Settings
 
-with open("roi_data.json", "r") as f:
-    roi_coords = json.load(f)
 
-cap = cv2.VideoCapture("public/simulation-longer.mp4")
-fps = cap.get(cv2.CAP_PROP_FPS)
-delay = int(1000 / fps)
-frame_count = 0
-last_results = {}
+def process_camera(train_id, wagon_id, camera):
+    model = YOLO(Settings.YOLO_MODEL)
+    seats = camera.get("seats", [])
+    if not seats:
+        return
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
+    cap = cv2.VideoCapture(Settings.VIDEO_SOURCE)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    delay = int(1000 / fps)
 
-    frame_count += 1
+    window_name = f"{train_id} | {wagon_id} | {camera['id']}"
+    frame_count = 0
+    last_results = {}
 
-    if frame_count % 5 == 0:
-        for i in range(0, len(roi_coords), 2):
-            x1, y1 = roi_coords[i]
-            x2, y2 = roi_coords[i + 1]
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-            cropped = frame[y1:y2, x1:x2]
-            results = model.predict(
-                source=cropped, classes=[0], conf=0.5, verbose=False
+        frame_count += 1
+
+        if frame_count % 5 == 0:
+            for seat in seats:
+                (x1, y1), (x2, y2) = seat["coords"]
+                cropped = frame[y1:y2, x1:x2]
+                results = model.predict(
+                    source=cropped, classes=[0], conf=0.5, verbose=False
+                )
+                is_occupied = len(results[0].boxes) > 0
+                last_results[seat["id"]] = {
+                    "occupied": is_occupied,
+                    "coords": (x1, y1, x2, y2),
+                }
+
+        for seat_id, result in last_results.items():
+            x1, y1, x2, y2 = result["coords"]
+            color = (0, 0, 255) if result["occupied"] else (0, 255, 0)
+            status = "Occupied" if result["occupied"] else "Free"
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(
+                frame,
+                f"{seat_id}: {status}",
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2,
             )
 
-            is_occupied = len(results[0].boxes) > 0
-            last_results[i] = {"occupied": is_occupied, "coords": (x1, y1, x2, y2)}
+        cv2.imshow(window_name, frame)
 
-    for i, result in last_results.items():
-        x1, y1, x2, y2 = result["coords"]
-        color = (0, 0, 255) if result["occupied"] else (0, 255, 0)
-        label = "Occupied" if result["occupied"] else "Free"
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(
-            frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2
-        )
+        if cv2.waitKey(delay) & 0xFF == ord("q"):
+            break
 
-    cv2.imshow("Demo", frame)
+    cap.release()
+    cv2.destroyAllWindows()
 
-    if cv2.waitKey(delay) & 0xFF == ord("q"):
-        break
 
-cap.release()
-cv2.destroyAllWindows()
+if __name__ == "__main__":
+    with open(Settings.CONFIG_PATH) as f:
+        config = json.load(f)
+
+    processes = []
+    for train in config["trains"]:
+        for wagon in train["wagons"]:
+            for camera in wagon["cameras"]:
+                p = Process(
+                    target=process_camera, args=(train["id"], wagon["id"], camera)
+                )
+                processes.append(p)
+                p.start()
+
+    for p in processes:
+        p.join()

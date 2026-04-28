@@ -1,20 +1,17 @@
 import json
-from pathlib import Path
 
 import cv2
 
-BASE_DIR = Path(__file__).parent
-CONFIG_PATH = BASE_DIR / "config.json"
-EMPTY_STATES_DIR = BASE_DIR / "public" / "empty-states"
+from settings import Settings
 
-with open(CONFIG_PATH) as f:
+with open(Settings.CONFIG_PATH) as f:
     config = json.load(f)
 
 for train in config["trains"]:
     for wagon in train["wagons"]:
         for camera in wagon["cameras"]:
             name = f"{train['id']}_{wagon['id']}_{camera['id']}.png"
-            img = cv2.imread(str(EMPTY_STATES_DIR / name))
+            img = cv2.imread(str(Settings.EMPTY_STATES_DIR / name))
 
             roi_coords = []
             seats = []
@@ -58,5 +55,5 @@ for train in config["trains"]:
 
             camera["seats"] = seats
 
-with open(CONFIG_PATH, "w") as f:
+with open(Settings.CONFIG_PATH, "w") as f:
     json.dump(config, f, indent=2)
