@@ -1,37 +1,62 @@
 import json
+from pathlib import Path
 
 import cv2
 
-img = cv2.imread("empty-state.png")
-roi_coords = []
+BASE_DIR = Path(__file__).parent
+CONFIG_PATH = BASE_DIR / "config.json"
+EMPTY_STATES_DIR = BASE_DIR / "public" / "empty-states"
 
+with open(CONFIG_PATH) as f:
+    config = json.load(f)
 
-def mouse_click(event, x, y, _, __):
-    if event != cv2.EVENT_LBUTTONDOWN:
-        return
+for train in config["trains"]:
+    for wagon in train["wagons"]:
+        for camera in wagon["cameras"]:
+            name = f"{train['id']}_{wagon['id']}_{camera['id']}.png"
+            img = cv2.imread(str(EMPTY_STATES_DIR / name))
 
-    roi_coords.append((x, y))
+            roi_coords = []
+            seats = []
 
-    if len(roi_coords) % 2 != 0:
-        return
+            def mouse_click(event, x, y, _, __):
+                if event != cv2.EVENT_LBUTTONDOWN:
+                    return
 
-    x1 = min(roi_coords[-2][0], roi_coords[-1][0])
-    y1 = min(roi_coords[-2][1], roi_coords[-1][1])
-    x2 = max(roi_coords[-2][0], roi_coords[-1][0])
-    y2 = max(roi_coords[-2][1], roi_coords[-1][1])
+                roi_coords.append((x, y))
 
-    roi_coords[-2] = (x1, y1)
-    roi_coords[-1] = (x2, y2)
+                if len(roi_coords) % 2 != 0:
+                    return
 
-    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    cv2.imshow("image", img)
+                x1 = min(roi_coords[-2][0], roi_coords[-1][0])
+                y1 = min(roi_coords[-2][1], roi_coords[-1][1])
+                x2 = max(roi_coords[-2][0], roi_coords[-1][0])
+                y2 = max(roi_coords[-2][1], roi_coords[-1][1])
 
+                roi_coords[-2] = (x1, y1)
+                roi_coords[-1] = (x2, y2)
 
-cv2.imshow("image", img)
-cv2.setMouseCallback("image", mouse_click)
-cv2.waitKey(0)
+                seat_id = f"seat_{len(seats) + 1}"
+                seats.append({"id": seat_id, "coords": [[x1, y1], [x2, y2]]})
 
-with open("roi_data.json", "w") as f:
-    json.dump(roi_coords, f)
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(
+                    img,
+                    seat_id,
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 0),
+                    2,
+                )
+                cv2.imshow(name, img)
 
-cv2.destroyAllWindows()
+            cv2.imshow(name, img)
+            cv2.setMouseCallback(name, mouse_click)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
+            camera["seats"] = seats
+
+with open(CONFIG_PATH, "w") as f:
+    json.dump(config, f, indent=2)
