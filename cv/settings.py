@@ -9,4 +9,3 @@ class Settings:
     VIDEO_SOURCE = BASE_DIR / "public" / "simulation-longer.mp4"
     EMPTY_STATES_DIR = BASE_DIR / "public" / "empty-states"
     YOLO_MODEL = BASE_DIR / "yolov8n.pt"
-    # MODE_DEVELOPMENT = True

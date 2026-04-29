@@ -4,32 +4,32 @@ namespace SeatMonitorApi;
 
 public sealed class SeatEventBus
 {
-    private readonly List<ChannelWriter<SeatEvent>> _writers = [];
+    private readonly List<ChannelWriter<SeatEvent>> _channelWriters = [];
 
     private readonly object _lock = new();
 
-    public IDisposable Subscribe(out ChannelReader<SeatEvent> reader)
+    public IDisposable Subscribe(out ChannelReader<SeatEvent> channelReader)
     {
         Channel<SeatEvent> channel = Channel.CreateBounded<SeatEvent>(new BoundedChannelOptions(100)
         {
             FullMode = BoundedChannelFullMode.DropOldest
         });
 
-        reader = channel.Reader;
+        channelReader = channel.Reader;
 
         lock (_lock)
         {
-            _writers.Add(channel.Writer);
+            _channelWriters.Add(channel.Writer);
         }
 
-        return new DisposableUnsubscriber(() =>
+        return new DisposableSubscriber(() =>
         {
             lock (_lock)
             {
-                _writers.Remove(channel.Writer);
+                _channelWriters.Remove(channel.Writer);
             }
 
-            channel.Writer.Complete();
+            channel.Writer.TryComplete();
         });
     }
 
@@ -37,14 +37,14 @@ public sealed class SeatEventBus
     {
         lock (_lock)
         {
-            foreach (ChannelWriter<SeatEvent> w in _writers)
+            foreach (ChannelWriter<SeatEvent> channelWriter in _channelWriters)
             {
-                w.TryWrite(seatEvent);
+                channelWriter.TryWrite(seatEvent);
             }
         }
     }
 
-    private sealed class DisposableUnsubscriber(Action dispose) : IDisposable
+    private sealed class DisposableSubscriber(Action dispose) : IDisposable
     {
         public void Dispose()
         {

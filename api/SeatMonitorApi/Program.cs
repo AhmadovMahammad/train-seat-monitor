@@ -28,19 +28,19 @@ JsonSerializerOptions options = new JsonSerializerOptions
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
 };
 
-app.MapGet("/events", async (SeatEventBus bus, HttpContext ctx, CancellationToken ct) =>
+app.MapGet("/events", async (SeatEventBus bus, HttpContext context, CancellationToken cancellationToken) =>
 {
-    ctx.Response.ContentType = "text/event-stream";
+    context.Response.ContentType = "text/event-stream";
 
-    using IDisposable sub = bus.Subscribe(out ChannelReader<SeatEvent> reader);
+    using IDisposable subscriber = bus.Subscribe(out ChannelReader<SeatEvent> channelReader);
 
-    await foreach (SeatEvent seatEvent in reader.ReadAllAsync(ct))
+    await foreach (SeatEvent seatEvent in channelReader.ReadAllAsync(cancellationToken))
     {
         string data = JsonSerializer.Serialize(seatEvent, options);
 
-        await ctx.Response.WriteAsync($"event: message\ndata: {data}\n\n");
+        await context.Response.WriteAsync($"event: message\ndata: {data}\n\n", cancellationToken: cancellationToken);
 
-        await ctx.Response.Body.FlushAsync(ct);
+        await context.Response.Body.FlushAsync(cancellationToken);
     }
 });
 

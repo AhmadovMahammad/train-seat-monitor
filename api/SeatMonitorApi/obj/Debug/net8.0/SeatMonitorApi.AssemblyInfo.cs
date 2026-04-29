@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SeatMonitorApi")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+96878356bc67bbdcb28d99154b19f55176f59927")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6f7b1cd00b34cc7b101985d73403c62bc6414ad9")]
 [assembly: System.Reflection.AssemblyProductAttribute("SeatMonitorApi")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SeatMonitorApi")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

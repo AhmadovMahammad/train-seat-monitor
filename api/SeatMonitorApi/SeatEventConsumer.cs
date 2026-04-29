@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -7,6 +6,11 @@ namespace SeatMonitorApi;
 
 public class SeatEventConsumer(SeatEventBus bus) : BackgroundService
 {
+    private readonly JsonSerializerOptions _serializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         ConnectionFactory factory = new ConnectionFactory { HostName = "localhost" };
@@ -22,16 +26,11 @@ public class SeatEventConsumer(SeatEventBus bus) : BackgroundService
 
         AsyncEventingBasicConsumer consumer = new AsyncEventingBasicConsumer(channel);
 
-        JsonSerializerOptions serializerOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-        };
-
         consumer.ReceivedAsync += (_, ea) =>
         {
-            string json = Encoding.UTF8.GetString(ea.Body.ToArray());
+            byte[] body = ea.Body.ToArray();
 
-            if (JsonSerializer.Deserialize<SeatEvent>(json, serializerOptions) is { } seatEvent)
+            if (JsonSerializer.Deserialize<SeatEvent>(body, _serializerOptions) is { } seatEvent)
             {
                 bus.Publish(seatEvent);
             }
@@ -39,8 +38,7 @@ public class SeatEventConsumer(SeatEventBus bus) : BackgroundService
             return Task.CompletedTask;
         };
 
-        await channel.BasicConsumeAsync("passenger-seat", autoAck: true, consumer: consumer,
-            cancellationToken: stoppingToken);
+        await channel.BasicConsumeAsync("passenger-seat", autoAck: true, consumer: consumer, stoppingToken);
 
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
