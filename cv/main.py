@@ -40,32 +40,41 @@ def process_camera(train_id, wagon_id, camera):
     frame_count = 0
     last_status = {}
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+    try:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        frame_count += 1
+            frame_count += 1
 
-        if frame_count % 5 != 0:
-            continue
-
-        for seat in seats:
-            (x1, y1), (x2, y2) = seat["coords"]
-            cropped = frame[y1:y2, x1:x2]
-            results = model.predict(
-                source=cropped, classes=[0], conf=0.5, verbose=False
-            )
-            is_occupied = len(results[0].boxes) > 0
-
-            if last_status.get(seat["id"]) == is_occupied:
+            if frame_count % 5 != 0:
                 continue
 
-            last_status[seat["id"]] = is_occupied
-            publish(channel, train_id, wagon_id, camera["id"], seat["id"], is_occupied)
+            for seat in seats:
+                (x1, y1), (x2, y2) = seat["coords"]
+                cropped = frame[y1:y2, x1:x2]
+                results = model.predict(
+                    source=cropped, classes=[0], conf=0.5, verbose=False
+                )
 
-    cap.release()
-    connection.close()
+                is_occupied = len(results[0].boxes) > 0
+
+                key = f"{train_id}_{wagon_id}_{camera['id']}_{seat['id']}"
+
+                if last_status.get(key) == is_occupied:
+                    continue
+
+                last_status[key] = is_occupied
+
+                publish(
+                    channel, train_id, wagon_id, camera["id"], seat["id"], is_occupied
+                )
+    except KeyboardInterrupt:
+        pass
+    finally:
+        cap.release()
+        connection.close()
 
 
 if __name__ == "__main__":
@@ -73,14 +82,18 @@ if __name__ == "__main__":
         config = json.load(f)
 
     processes = []
-    for train in config["trains"]:
-        for wagon in train["wagons"]:
-            for camera in wagon["cameras"]:
-                p = Process(
-                    target=process_camera, args=(train["id"], wagon["id"], camera)
-                )
-                processes.append(p)
-                p.start()
 
-    for p in processes:
-        p.join()
+    try:
+        for train in config["trains"]:
+            for wagon in train["wagons"]:
+                for camera in wagon["cameras"]:
+                    p = Process(
+                        target=process_camera, args=(train["id"], wagon["id"], camera)
+                    )
+                    processes.append(p)
+                    p.start()
+
+        for p in processes:
+            p.join()
+    except KeyboardInterrupt:
+        print("keyboard interrupted.")

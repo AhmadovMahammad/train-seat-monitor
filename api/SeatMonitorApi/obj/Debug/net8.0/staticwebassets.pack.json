@@ -1,0 +1,25 @@
+{
+  "Files": [
+    {
+      "Id": "/home/ahmadov-mahammad/Documents/master-big-data-presentation/api/SeatMonitorApi/wwwroot/index.html",
+      "PackagePath": "staticwebassets/index.html"
+    },
+    {
+      "Id": "obj/Debug/net8.0/staticwebassets/msbuild.SeatMonitorApi.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj/Debug/net8.0/staticwebassets/msbuild.build.SeatMonitorApi.props",
+      "PackagePath": "build\\SeatMonitorApi.props"
+    },
+    {
+      "Id": "obj/Debug/net8.0/staticwebassets/msbuild.buildMultiTargeting.SeatMonitorApi.props",
+      "PackagePath": "buildMultiTargeting\\SeatMonitorApi.props"
+    },
+    {
+      "Id": "obj/Debug/net8.0/staticwebassets/msbuild.buildTransitive.SeatMonitorApi.props",
+      "PackagePath": "buildTransitive\\SeatMonitorApi.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

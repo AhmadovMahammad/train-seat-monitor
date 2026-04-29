@@ -1,0 +1,39 @@
+{
+  "Version": 1,
+  "Hash": "WTB3kxyDYmaxlwAcVdFQeeFat3u9aVzs95N4TTayzKo=",
+  "Source": "SeatMonitorApi",
+  "BasePath": "_content/SeatMonitorApi",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "SeatMonitorApi/wwwroot",
+      "Source": "SeatMonitorApi",
+      "ContentRoot": "/home/ahmadov-mahammad/Documents/master-big-data-presentation/api/SeatMonitorApi/wwwroot/",
+      "BasePath": "_content/SeatMonitorApi",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "/home/ahmadov-mahammad/Documents/master-big-data-presentation/api/SeatMonitorApi/wwwroot/index.html",
+      "SourceId": "SeatMonitorApi",
+      "SourceType": "Discovered",
+      "ContentRoot": "/home/ahmadov-mahammad/Documents/master-big-data-presentation/api/SeatMonitorApi/wwwroot/",
+      "BasePath": "_content/SeatMonitorApi",
+      "RelativePath": "index.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot/index.html"
+    }
+  ]
+}

@@ -32,9 +32,7 @@ while cap.isOpened():
         for seat in seats:
             (x1, y1), (x2, y2) = seat["coords"]
             cropped = frame[y1:y2, x1:x2]
-            results = model.predict(
-                source=cropped, classes=[0], conf=0.5, verbose=False
-            )
+            results = model.predict(source=cropped, classes=[0], conf=0.5, verbose=True)
             last_status[seat["id"]] = len(results[0].boxes) > 0
 
     for seat in seats:
