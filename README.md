@@ -1,95 +1,49 @@
 # Train Seat Monitor
 
-A simulation project for the lecture: **"Big Data Pipelines for Computer Vision: Real-Time Processing of Video Streams"** in AZTU (Azerbaijan Technical University)
+Real-time seat occupancy detection for train wagons. YOLO runs on the edge device - only lightweight JSON events are forwarded, not raw video.
 
-## Overview
+> Made for the lecture **"Big Data Pipelines for Computer Vision: Real-Time Processing of Video Streams"** at AZTU (*Azerbaijan Technical University*).
 
-Real-time seat occupancy detection for train wagons. Processing runs on the edge device, only lightweight JSON events are forwarded, not raw video streams.
+## Demo
 
-## Dashboard
+| Raw feed | With detection |
+|:---:|:---:|
+| ![](cv/public/simulation-default.gif) | ![](cv/public/simulation-with-seat-occupancy.gif) |
 
-![Mixed state](docs/dashboard-mixed.jpeg)
-![All free](docs/dashboard-free.jpeg)
-
-## Architecture
+## Pipeline
 
 ```
-Camera -> Frame Skip -> YOLO (person detection) -> ROI Check -> RabbitMQ -> .NET API -> SSE -> Browser
+config.json → setup.py → mark_roi.py → main.py → RabbitMQ → .NET API → SSE → Browser
 ```
 
-- **Frame skip**: every 5th frame is analyzed, reducing load by 80%
-- **ROI**: only the marked seat region is cropped and passed to YOLO, not the full frame
-- **YOLO (yolov8n)**: detects persons inside the cropped region
-- **Change-only publish**: event is sent only when seat status changes (free / occupied)
-- **RabbitMQ**: `passenger-seat` queue (quorum, durable) decouples CV from backend
-- **Multiprocessing**: each camera runs in its own process in parallel
-- **SSE**: `.NET API` pushes seat events to the browser via Server-Sent Events
-- **Live dashboard**: SVG-based seat map, seat colors update in real time without page reload
+| Step | What it does |
+|---|---|
+| `config.json` | Defines train → wagon → camera structure. `seats` starts empty. |
+| `setup.py` | Connects to each camera URL, captures one frame, saves to `empty-states/`. |
+| `mark_roi.py` | Opens each empty frame. You click to draw boxes around seats. Coords saved back to `config.json`. |
+| `main.py` | One process per camera. Detects persons in each seat region. Publishes change events to RabbitMQ. |
+| `.NET API` | Consumes RabbitMQ queue, pushes events to browser via SSE. |
+
+**Why SSE, not WebSocket/SignalR?** The browser only reads - server pushes. SSE is simpler, native to browsers, no extra library.
+
+**Why not Kafka/Redis?** They'd be overkill here. RabbitMQ is enough.
 
 ## Scale
 
-| Level | Count |
+| | Count |
 |---|---|
 | Cameras per wagon | 10 |
 | Wagons per train | 10 |
 | Trains | 50 |
 | **Total cameras** | **5,000** |
-| Frames analyzed/sec (15fps, every 5th) | **15,000/sec** |
+| Frames analyzed/sec | **15,000/sec** |
 
-Sending raw video at this scale is infeasible: this is why the pipeline exists.
-
-## Project Structure
-
-```
-├── cv/
-│   ├── main.py            # Production: multiprocessing, one process per camera, publishes to RabbitMQ
-│   ├── main_simple.py     # Demo: single camera, no RabbitMQ, draws bounding boxes on screen
-│   ├── mark_roi.py        # Tool to mark seat regions and save to config.json
-│   ├── settings.py        # Paths (config, video source, model)
-│   └── yolov8n.pt         # YOLO model weights
-├── api/
-│   └── SeatMonitorApi/
-│       ├── Program.cs            # Endpoints: GET /api/layout, GET /events (SSE)
-│       ├── SeatEventBus.cs       # In-process broadcast: Channel<T> per subscriber
-│       ├── SeatEventConsumer.cs  # RabbitMQ BackgroundService, publishes to bus
-│       ├── SeatEvent.cs          # Record: TrainId, WagonId, CameraId, SeatId, Status
-│       └── wwwroot/
-│           └── index.html        # Live SVG seat map, auto-generated from /api/layout
-├── docs/
-│   ├── dashboard-mixed.jpeg
-│   └── dashboard-free.jpeg
-└── config.json            # Train -> wagon -> camera -> seat coords
-```
-
-## Running
-
-**Prerequisites**
-```bash
-docker start rabbitmq   # or: docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:management
-```
-
-**CV (producer)**
-```bash
-cd cv
-source venv/bin/activate
-
-python main_simple.py   # demo mode: shows video with seat labels
-python main.py          # full mode: all cameras in parallel, publishes to RabbitMQ
-```
-
-**API (consumer + dashboard)**
-```bash
-cd api/SeatMonitorApi
-dotnet run
-```
-
-Open `http://localhost:5212` to see the live seat map.
-
-**RabbitMQ management panel:** `http://localhost:15672` (guest / guest)
+Sending raw video from 5,000 cameras is not feasible - this is exactly why the pipeline exists.
 
 ## Setup from scratch
 
-**1. Edit `config.json`** with your train/wagon/camera structure (leave seats empty):
+**1. Define your cameras in `config.json`** - leave `seats` empty for now:
+
 ```json
 {
   "trains": [{
@@ -106,7 +60,8 @@ Open `http://localhost:5212` to see the live seat map.
 }
 ```
 
-**2. Install dependencies**
+**2. Install Python dependencies:**
+
 ```bash
 cd cv
 python3 -m venv venv
@@ -114,16 +69,45 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**3. Extract empty states**
+**3. Capture empty frames:**
+
 ```bash
 python setup.py
 ```
 
-Reads `config.json`, captures one frame per camera from the video source, saves them to `cv/public/empty-states/`. These frames are used as the background for marking seats.
+Reads `config.json`, connects to each camera URL, saves one empty frame per camera to `cv/public/empty-states/`. These frames are used in the next step.
 
-**4. Mark seat regions**
+**4. Mark seat regions:**
+
 ```bash
 python mark_roi.py
 ```
 
-Opens each empty state image. Draw bounding boxes around each seat. Saves seat coords into `config.json` automatically.
+Opens each empty frame. Click twice to draw a bounding box around each seat. Press any key to move to the next camera. Seat coordinates are saved back into `config.json` automatically.
+
+## Running
+
+**Start RabbitMQ:**
+
+```bash
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:management
+```
+
+**Start CV:**
+
+```bash
+cd cv && source venv/bin/activate
+
+python main_simple.py   # demo: single camera, draws bounding boxes on screen
+python main.py          # production: all cameras in parallel, publishes to RabbitMQ
+```
+
+**Start API:**
+
+```bash
+cd api/SeatMonitorApi && dotnet run
+```
+
+Live seat map: `http://localhost:5212`
+
+RabbitMQ panel: `http://localhost:15672` (guest / guest)
