@@ -1,5 +1,7 @@
 **/*.mp4
 **/*.gif
+!cv/public/simulation-default.gif                                                                                                                                                      
+!cv/public/simulation-with-seat-occupancy.gif
 venv/
 yolov8n.pt
 __pycache__/
